@@ -2,64 +2,24 @@
 Linear Ballistic Accumulator (LBA) model implementation.
 """
 
+from typing import Optional, Union, Dict, Any
+from dataclasses import dataclass, fields
 import math
 import numpy as np
 import pandas as pd
 import pytensor.tensor as pt
-from typing import Optional, NamedTuple, Union, Dict, Any
 
-from .core import AccumulatorModel, ModelParameters
-from .utils import broadcast_parameters
+from ..core.accumulator import AccumulatorModel
+from ..core.parameters import ModelParameters
+from ..utils import broadcast_parameters
 
-
+@dataclass(frozen=True)
 class LBAParameters(ModelParameters):
-    """
-    Parameters for the Linear Ballistic Accumulator model.
-    
-    Parameters
-    ----------
-    A : float or array-like
-        Start point variability (upper bound of uniform distribution)
-    b : float or array-like
-        Response threshold
-    v : float or array-like
-        Drift rate
-    s : float or array-like
-        Drift rate standard deviation
-    tau : float or array-like
-        Non-decision time
-    """
     A: Union[float, np.ndarray]
     b: Union[float, np.ndarray]
     v: Union[float, np.ndarray]
     s: Union[float, np.ndarray]
     tau: Union[float, np.ndarray]
-    
-    def validate(self) -> bool:
-        """Validate LBA parameter constraints."""
-        # Convert to arrays for validation
-        A = np.atleast_1d(self.A)
-        b = np.atleast_1d(self.b)
-        v = np.atleast_1d(self.v)
-        s = np.atleast_1d(self.s)
-        tau = np.atleast_1d(self.tau)
-        
-        # Basic positivity constraints
-        if np.any(A <= 0):
-            return False
-        if np.any(b <= 0):
-            return False
-        if np.any(s <= 0):
-            return False
-        if np.any(tau < 0):
-            return False
-        
-        # LBA-specific constraints
-        if np.any(b <= A):
-            return False
-        
-        return True
-
 
 class LBAModel(AccumulatorModel):
     """
@@ -79,8 +39,12 @@ class LBAModel(AccumulatorModel):
     def __init__(self):
         super().__init__("Linear Ballistic Accumulator")
     
-    def pdf(self, rt: np.ndarray, response: np.ndarray, 
-            parameters: LBAParameters, n_acc: Optional[int] = None) -> pt.TensorVariable:
+    def pdf(self, 
+            rt: np.ndarray, 
+            response: np.ndarray, 
+            parameters: LBAParameters, 
+            n_acc: Optional[int] = None
+        ) -> pt.TensorVariable:
         """
         Compute the probability density function for the LBA model.
         
@@ -153,83 +117,13 @@ class LBAModel(AccumulatorModel):
         t = rt - tau[response]
         return pt.switch(pt.gt(t, 0), pdf, 1e-20)
     
-    def generate_data(self, n_trials: int, parameters: LBAParameters, 
-                     n_acc: Optional[int] = None, seed: Optional[int] = None) -> pd.DataFrame:
-        """
-        Generate synthetic data from the LBA model.
-        
-        Parameters
-        ----------
-        n_trials : int
-            Number of trials to simulate
-        parameters : LBAParameters
-            Model parameters
-        n_acc : int, optional
-            Number of accumulators (inferred from parameters if not provided)
-        seed : int, optional
-            Random seed for reproducibility
-            
-        Returns
-        -------
-        pd.DataFrame
-            Simulated data with columns 'rt' and 'response'
-        """
-        rng = np.random.default_rng(seed)
-        
-        # Infer or validate n_acc
-        v_raw = np.atleast_1d(parameters.v)
-        n_acc_val = int(n_acc) if n_acc is not None else v_raw.size
-        
-        # Broadcast/validate parameters
-        def _prep(param_val):
-            arr = np.atleast_1d(param_val).astype(float)
-            if arr.size == 1:
-                return np.full(n_acc_val, arr.item(), dtype=float)
-            if arr.size == n_acc_val:
-                return arr
-            raise ValueError(f"Parameter must be scalar or length={n_acc_val}, got size={arr.size}")
-        
-        A_arr = _prep(parameters.A)
-        b_arr = _prep(parameters.b)
-        v_arr = _prep(parameters.v)
-        s_arr = _prep(parameters.s)
-        tau_arr = _prep(parameters.tau)
-        
-        # Uniform start-points
-        k = rng.random((n_acc_val, n_trials)) * A_arr[:, None]
-        
-        # Prepare full-shape loc/scale for drifts
-        loc_mat = np.tile(v_arr[:, None], (1, n_trials))
-        scale_mat = np.tile(s_arr[:, None], (1, n_trials))
-        
-        # Draw drifts truncated at zero
-        d = rng.normal(loc=loc_mat, scale=scale_mat)
-        mask = d <= 0
-        while mask.any():
-            d[mask] = rng.normal(
-                loc=loc_mat[mask],
-                scale=scale_mat[mask],
-                size=mask.sum()
-            )
-            mask = d <= 0
-        
-        # Finish times
-        T = tau_arr[:, None] + (b_arr[:, None] - k) / d
-        
-        # RT & response
-        rt = T.min(axis=0)
-        resp = T.argmin(axis=0)
-        
-        return pd.DataFrame({
-            'rt': rt.astype('float32'),
-            'response': resp.astype('int32')
-        })
-    
     def get_parameter_class(self) -> type:
         """Return the parameter class for the LBA model."""
         return LBAParameters
     
-    def get_default_priors(self, n_acc: int) -> Dict[str, Any]:
+    def get_default_priors(self, 
+                           n_acc: int
+        ) -> Dict[str, Any]:
         """
         Get default prior distributions for LBA parameters.
         

@@ -8,27 +8,6 @@ import numpy as np
 import pandas as pd
 import pytensor.tensor as pt
 
-
-class ModelParameters(NamedTuple):
-    """
-    Base class for model parameters using named tuples.
-    Subclasses should define specific parameter fields.
-    """
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert parameters to dictionary format."""
-        return self._asdict()
-    
-    @classmethod
-    def from_dict(cls, param_dict: Dict[str, Any]) -> 'ModelParameters':
-        """Create parameters from dictionary."""
-        return cls(**param_dict)
-    
-    def validate(self) -> bool:
-        """Validate parameter constraints. Override in subclasses."""
-        return True
-
-
 class AccumulatorModel(ABC):
     """
     Abstract base class for accumulator models.
@@ -45,7 +24,7 @@ class AccumulatorModel(ABC):
     
     @abstractmethod
     def pdf(self, rt: np.ndarray, response: np.ndarray, 
-            parameters: ModelParameters, **kwargs) -> pt.TensorVariable:
+            parameters, **kwargs) -> pt.TensorVariable:
         """
         Compute the probability density function.
         
@@ -62,30 +41,6 @@ class AccumulatorModel(ABC):
         -------
         pt.TensorVariable
             Log probability density
-        """
-        pass
-    
-    @abstractmethod
-    def generate_data(self, n_trials: int, parameters: ModelParameters, 
-                     n_acc: Optional[int] = None, seed: Optional[int] = None) -> pd.DataFrame:
-        """
-        Generate synthetic data from the model.
-        
-        Parameters
-        ----------
-        n_trials : int
-            Number of trials to simulate
-        parameters : ModelParameters
-            Model parameters
-        n_acc : int, optional
-            Number of accumulators
-        seed : int, optional
-            Random seed
-            
-        Returns
-        -------
-        pd.DataFrame
-            Simulated data with columns 'rt' and 'response'
         """
         pass
     
@@ -110,7 +65,7 @@ class AccumulatorModel(ABC):
         AccumulatorModel
             Fitted model instance
         """
-        from .fitting import MCMCFitter
+        from ..fitting import MCMCFitter
         
         fitter = MCMCFitter(self)
         self._trace = fitter.fit(data, **kwargs)
@@ -133,7 +88,7 @@ class AccumulatorModel(ABC):
         AccumulatorModel
             Fitted model instance
         """
-        from .fitting import EMFitter
+        from ..fitting import EMFitter
         
         fitter = EMFitter(self)
         self._parameters = fitter.fit(data, **kwargs)
@@ -186,3 +141,4 @@ class AccumulatorModel(ABC):
     def parameters(self):
         """Get fitted parameters if available."""
         return self._parameters
+

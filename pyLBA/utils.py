@@ -24,14 +24,14 @@ def broadcast_parameters(n: int, *args) -> Tuple[pt.TensorVariable, ...]:
         Broadcasted parameters
     """
     def _promote(x):
-        x_var = pt.constant(x) if not hasattr(x, "ndim") else x
+        x_var = np.array(x) if not hasattr(x, "ndim") else x
         if x_var.ndim == 0:
-            return pt.repeat(x_var, n)
+            return np.repeat(x_var, n)
         if x_var.ndim == 1:
             return x_var
         raise ValueError(f"Scalars or 1-D tensor of dim {n} only, got ndim={x_var.ndim}")
     
-    return tuple(_promote(x) for x in args)
+    return tuple(_promote(x.value) for x in args)
 
 
 def validate_data(data):

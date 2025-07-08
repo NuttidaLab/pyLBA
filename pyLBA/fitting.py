@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-from .core import AccumulatorModel, ModelParameters
+from .core.accumulator import AccumulatorModel
+from .core.parameters import ModelParameters
 
 
 class BaseFitter(ABC):
@@ -26,7 +27,8 @@ class BaseFitter(ABC):
 class MCMCFitter(BaseFitter):
     """MCMC fitting using PyMC."""
     
-    def fit(self, data: pd.DataFrame, 
+    def fit(self, 
+            data: pd.DataFrame, 
             draws: int = 1000,
             tune: int = 1000,
             chains: int = 4,
